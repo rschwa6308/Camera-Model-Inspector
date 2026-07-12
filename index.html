@@ -688,20 +688,24 @@
     ctx.fillStyle = '#18191c';
     ctx.fillRect(0, 0, cssW, cssH);
 
-    // normalized coordinate bounds covering the frame, plus margin
-    let xMinN = (0 - cx) / fx, xMaxN = (width - cx) / fx;
-    let yMinN = (0 - cy) / fy, yMaxN = (height - cy) / fy;
-    const xRange = xMaxN - xMinN, yRange = yMaxN - yMinN;
-    const marginX = xRange * 0.35, marginY = yRange * 0.35;
-    xMinN -= marginX; xMaxN += marginX;
-    yMinN -= marginY; yMaxN += marginY;
+    // normalized coordinate bounds covering the visible frame (no margin yet)
+    const xMinF = (0 - cx) / fx, xMaxF = (width - cx) / fx;
+    const yMinF = (0 - cy) / fy, yMaxF = (height - cy) / fy;
 
-    const targetCellPx = 70;
-    let stepX = targetCellPx / fx, stepY = targetCellPx / fy;
-    let cols = Math.ceil((xMaxN - xMinN) / stepX);
-    let rows = Math.ceil((yMaxN - yMinN) / stepY);
-    cols = Math.min(Math.max(cols, 4), 90);
-    rows = Math.min(Math.max(rows, 4), 90);
+    // Fixed column count, sized against the visible frame only, so
+    // checkerboard density reflects FOV/aspect and isn't a function of
+    // pixel resolution (fx/fy would otherwise cancel out of cols).
+    const targetCols = 19;
+    let stepX = (xMaxF - xMinF) / targetCols;
+    let stepY = stepX * (fx / fy); // keep cells visually square on screen
+
+    // now extend bounds by margin, using the step size already fixed above
+    const marginX = (xMaxF - xMinF) * 0.35, marginY = (yMaxF - yMinF) * 0.35;
+    let xMinN = xMinF - marginX, xMaxN = xMaxF + marginX;
+    let yMinN = yMinF - marginY, yMaxN = yMaxF + marginY;
+
+    let cols = Math.max(2, Math.round((xMaxN - xMinN) / stepX));
+    let rows = Math.min(Math.max(Math.round((yMaxN - yMinN) / stepY), 2), 90);
     stepX = (xMaxN - xMinN) / cols;
     stepY = (yMaxN - yMinN) / rows;
 
