@@ -611,7 +611,7 @@
 
   function computeCanvasSize(){
     const wrap = canvas.parentElement.parentElement; // viewport-col
-    const available = Math.min(wrap.clientWidth - 28, 760);
+    const available = wrap.clientWidth - 28;
     const maxH = window.innerHeight * 0.62;
     let cssW = Math.max(280, available);
     let cssH = cssW * (state.height/state.width);
