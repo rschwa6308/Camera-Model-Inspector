@@ -1,0 +1,849 @@
+<!-- This web app was mostly vibe-coded by Claude Sonnet 5 -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Camera Calibration Inspector — K-Matrix &amp; Distortion Visualizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Raleway:wght@400;500;600;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff;
+    --panel:#f7f7f7;
+    --panel-border:#e2e2e2;
+    --hole:#e6e6e6;
+    --screen-bg:#18191c;
+    --screen-hole:#232428;
+    --text-primary:#202020;
+    --text-muted:#707070;
+    --text-faint:#9a9a9a;
+    --accent-primary:#ee1133;
+    --accent-primary-hover:#d5001a;
+    --accent-primary-dim:rgba(238,17,51,.12);
+    --accent-secondary:#1153ee;
+    --accent-secondary-dim:rgba(17,83,238,.14);
+    --danger:#bb0000;
+    --mono:'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans:'Raleway', Arial, Helvetica, sans-serif;
+    --heading:'Quicksand', Tahoma, Arial, sans-serif;
+    --radius:6px;
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    background-color:var(--bg);
+    color:var(--text-primary);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+
+  a{color:var(--accent-primary);}
+  a:hover{color:var(--accent-primary-hover);}
+
+  header{
+    max-width:1400px;
+    margin:0 auto;
+    padding:28px 24px 8px;
+  }
+
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.14em;
+    color:var(--accent-primary);
+    text-transform:uppercase;
+    margin:0 0 6px;
+  }
+
+  h1{
+    font-family:var(--heading);
+    font-weight:700;
+    font-size:clamp(20px,3vw,28px);
+    letter-spacing:-0.01em;
+    margin:0 0 6px;
+  }
+
+  header p{
+    color:var(--text-muted);
+    font-size:14px;
+    max-width:640px;
+    line-height:1.5;
+    margin:0;
+  }
+
+  .app{
+    display:grid;
+    grid-template-columns:320px 1fr;
+    gap:20px;
+    max-width:1400px;
+    margin:0 auto;
+    padding:20px 24px 48px;
+    align-items:start;
+  }
+
+  @media (max-width:900px){
+    .app{grid-template-columns:1fr;}
+  }
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:var(--radius);
+    padding:16px;
+    margin-bottom:16px;
+  }
+
+  .panel:last-child{margin-bottom:0;}
+
+  .section-label{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--accent-primary);
+    border-left:2px solid var(--accent-primary);
+    padding-left:8px;
+    margin:0 0 14px;
+  }
+
+  .field-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:10px;
+  }
+
+  .field{display:flex; flex-direction:column; gap:5px;}
+
+  .field label{
+    font-size:11px;
+    color:var(--text-muted);
+    font-family:var(--mono);
+  }
+
+  .input-unit{position:relative;}
+
+  .input-unit input[type=number]{
+    width:100%;
+    background:var(--bg);
+    border:1px solid var(--panel-border);
+    color:var(--text-primary);
+    font-family:var(--mono);
+    font-size:13px;
+    padding:7px 26px 7px 8px;
+    border-radius:var(--radius);
+  }
+
+  .input-unit span{
+    position:absolute;
+    right:8px;
+    top:50%;
+    transform:translateY(-50%);
+    font-size:10px;
+    color:var(--text-faint);
+    font-family:var(--mono);
+    pointer-events:none;
+  }
+
+  input[type=number]:focus, input[type=text]:focus, textarea:focus, button:focus-visible{
+    outline:2px solid var(--accent-primary);
+    outline-offset:1px;
+  }
+
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{
+    -webkit-appearance:none; margin:0;
+  }
+
+  .slider-field{margin-bottom:14px;}
+
+  .slider-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin-bottom:6px;
+  }
+
+  .slider-head label{
+    font-size:12px;
+    color:var(--text-primary);
+    font-family:var(--mono);
+  }
+
+  .slider-head .val{
+    font-family:var(--mono);
+    font-size:12px;
+    color:var(--accent-primary);
+    min-width:52px;
+    text-align:right;
+  }
+
+  input[type=range]{
+    -webkit-appearance:none;
+    width:100%;
+    height:4px;
+    background:var(--hole);
+    border-radius:2px;
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:14px; height:14px;
+    border-radius:50%;
+    background:var(--accent-primary);
+    box-shadow:0 0 0 3px var(--accent-primary-dim);
+    cursor:pointer;
+    margin-top:0;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:14px; height:14px; border:none;
+    border-radius:50%;
+    background:var(--accent-primary);
+    box-shadow:0 0 0 3px var(--accent-primary-dim);
+    cursor:pointer;
+  }
+
+  .hint{
+    font-size:11.5px;
+    color:var(--text-faint);
+    line-height:1.5;
+    margin:2px 0 14px;
+  }
+
+  .preset-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+
+  button{
+    font-family:var(--mono);
+    cursor:pointer;
+  }
+
+  .btn{
+    background:var(--bg);
+    border:1px solid var(--panel-border);
+    color:var(--text-primary);
+    font-size:11px;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+    padding:9px 8px;
+    border-radius:var(--radius);
+    transition:border-color .15s, color .15s;
+  }
+  .btn:hover{border-color:var(--accent-primary); color:var(--accent-primary);}
+
+  .btn-primary{
+    background:var(--accent-primary);
+    border:1px solid var(--accent-primary);
+    color:#fff;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+    padding:10px 12px;
+    border-radius:var(--radius);
+    width:100%;
+    transition:background-color .15s, border-color .15s;
+  }
+  .btn-primary:hover{background:var(--accent-primary-hover); border-color:var(--accent-primary-hover);}
+
+  textarea{
+    width:100%;
+    min-height:64px;
+    background:var(--bg);
+    border:1px solid var(--panel-border);
+    color:var(--text-primary);
+    font-family:var(--mono);
+    font-size:11.5px;
+    padding:8px;
+    border-radius:var(--radius);
+    resize:vertical;
+  }
+
+  .status-msg{
+    font-size:11px;
+    font-family:var(--mono);
+    margin-top:8px;
+    min-height:14px;
+  }
+  .status-msg.ok{color:var(--accent-secondary);}
+  .status-msg.err{color:var(--danger);}
+
+  .toggle-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:12px;
+    color:var(--text-muted);
+    font-family:var(--mono);
+    margin-top:14px;
+  }
+
+  input[type=checkbox]{
+    appearance:none;
+    width:14px; height:14px;
+    border:1px solid var(--panel-border);
+    border-radius:3px;
+    background:var(--bg);
+    position:relative;
+    cursor:pointer;
+    flex:none;
+  }
+  input[type=checkbox]:checked{
+    background:var(--accent-secondary-dim);
+    border-color:var(--accent-secondary);
+  }
+  input[type=checkbox]:checked::after{
+    content:'';
+    position:absolute;
+    left:3px; top:0px;
+    width:4px; height:8px;
+    border:solid var(--accent-secondary);
+    border-width:0 2px 2px 0;
+    transform:rotate(45deg);
+  }
+
+  /* ---------- viewport ---------- */
+
+  .viewport-col{position:sticky; top:20px;}
+
+  .hud-bar{
+    display:flex;
+    gap:18px;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+  }
+
+  .hud-stat{
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:var(--radius);
+    padding:8px 14px;
+  }
+  .hud-stat .hud-val{
+    font-family:var(--mono);
+    font-size:16px;
+    color:var(--accent-secondary);
+  }
+  .hud-stat .hud-label{
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--text-faint);
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    margin-top:2px;
+  }
+
+  .reticle-wrap{
+    position:relative;
+    display:inline-block;
+    padding:14px;
+    background-color:var(--screen-bg);
+    background-image:radial-gradient(circle, var(--screen-hole) 1.4px, transparent 1.4px);
+    background-size:26px 26px;
+    border-radius:8px;
+    box-shadow:0 1px 2px rgba(0,0,0,.1), 0 10px 28px rgba(0,0,0,.1);
+  }
+
+  .reticle-wrap::before, .reticle-wrap::after,
+  .reticle-corner-tr, .reticle-corner-bl{
+    content:'';
+    position:absolute;
+    width:18px; height:18px;
+    border-color:var(--accent-primary);
+    border-style:solid;
+    border-width:0;
+  }
+  .reticle-wrap::before{ /* top-left */
+    top:0; left:0;
+    border-top-width:2px; border-left-width:2px;
+  }
+  .reticle-wrap::after{ /* bottom-right */
+    bottom:0; right:0;
+    border-bottom-width:2px; border-right-width:2px;
+  }
+  .reticle-corner-tr{
+    top:0; right:0;
+    border-top-width:2px; border-right-width:2px;
+  }
+  .reticle-corner-bl{
+    bottom:0; left:0;
+    border-bottom-width:2px; border-left-width:2px;
+  }
+
+  canvas{
+    display:block;
+    border-radius:2px;
+    background:var(--screen-bg);
+  }
+
+  .viewport-caption{
+    max-width:600px;
+    color:var(--text-muted);
+    font-size:12.5px;
+    line-height:1.6;
+    margin-top:14px;
+  }
+
+  .viewport-caption b{color:var(--text-primary); font-weight:600;}
+
+  footer{
+    max-width:1400px;
+    margin:0 auto;
+    padding:0 24px 40px;
+    color:var(--text-faint);
+    font-size:11.5px;
+    font-family:var(--mono);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">Robotics / CV Utility</p>
+  <h1>Camera Calibration Inspector</h1>
+  <p>Enter an intrinsics matrix (K) and distortion coefficients, and see how a flat checkerboard target would actually appear through that lens — before you point a real camera at anything.</p>
+</header>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    <div class="panel">
+      <p class="section-label">Resolution</p>
+      <div class="field-row">
+        <div class="field">
+          <label for="width">Width</label>
+          <div class="input-unit">
+            <input type="number" id="width" min="16" step="1" value="1280">
+            <span>px</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="height">Height</label>
+          <div class="input-unit">
+            <input type="number" id="height" min="16" step="1" value="720">
+            <span>px</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="section-label">Intrinsics — K Matrix</p>
+      <div class="field-row">
+        <div class="field">
+          <label for="fx">fx</label>
+          <div class="input-unit">
+            <input type="number" id="fx" step="1" value="1000">
+            <span>px</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="fy">fy</label>
+          <div class="input-unit">
+            <input type="number" id="fy" step="1" value="1000">
+            <span>px</span>
+          </div>
+        </div>
+      </div>
+      <div class="field-row" style="margin-bottom:0;">
+        <div class="field">
+          <label for="cx">cx</label>
+          <div class="input-unit">
+            <input type="number" id="cx" step="1" value="640">
+            <span>px</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="cy">cy</label>
+          <div class="input-unit">
+            <input type="number" id="cy" step="1" value="360">
+            <span>px</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="section-label">Distortion Coefficients</p>
+      <p class="hint">Negative k1 barrels the image outward, positive k1 pinches it inward. p1/p2 model an off-axis (decentered) lens.</p>
+
+      <div class="slider-field">
+        <div class="slider-head"><label for="k1">k1 — radial</label><span class="val" id="k1val">-0.220</span></div>
+        <input type="range" id="k1" min="-1" max="1" step="0.005" value="-0.22">
+      </div>
+      <div class="slider-field">
+        <div class="slider-head"><label for="k2">k2 — radial</label><span class="val" id="k2val">0.060</span></div>
+        <input type="range" id="k2" min="-1" max="1" step="0.005" value="0.06">
+      </div>
+      <div class="slider-field">
+        <div class="slider-head"><label for="k3">k3 — radial</label><span class="val" id="k3val">0.000</span></div>
+        <input type="range" id="k3" min="-1" max="1" step="0.005" value="0">
+      </div>
+      <div class="slider-field">
+        <div class="slider-head"><label for="p1">p1 — tangential</label><span class="val" id="p1val">0.000</span></div>
+        <input type="range" id="p1" min="-0.1" max="0.1" step="0.0005" value="0">
+      </div>
+      <div class="slider-field" style="margin-bottom:0;">
+        <div class="slider-head"><label for="p2">p2 — tangential</label><span class="val" id="p2val">0.000</span></div>
+        <input type="range" id="p2" min="-0.1" max="0.1" step="0.0005" value="0">
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="section-label">Presets</p>
+      <div class="preset-grid">
+        <button class="btn" data-preset="pinhole">Ideal pinhole</button>
+        <button class="btn" data-preset="mild">Mild barrel</button>
+        <button class="btn" data-preset="strong">Strong barrel</button>
+        <button class="btn" data-preset="pincushion">Pincushion</button>
+        <button class="btn" data-preset="decentered" style="grid-column:1 / -1;">Decentered lens</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="section-label">Import</p>
+      <p class="hint" style="margin-bottom:8px;">Paste a printed OpenCV <code>mtx</code> and <code>dist</code> (any format) — numbers are pulled out in order.</p>
+      <textarea id="importBox" placeholder="[[1000. 0. 640.]&#10; [0. 1000. 360.]&#10; [0. 0. 1.]]&#10;[-0.22 0.06 0. 0. 0.]"></textarea>
+      <button class="btn" id="importBtn" style="width:100%; margin-top:8px;">Parse &amp; apply</button>
+      <p class="status-msg" id="importStatus"></p>
+    </div>
+
+    <div class="panel">
+      <p class="section-label">Export</p>
+      <button class="btn-primary" id="copyBtn">Copy as OpenCV snippet</button>
+      <p class="status-msg" id="copyStatus"></p>
+    </div>
+
+  </div>
+
+  <!-- VIEWPORT -->
+  <div class="viewport-col">
+    <div class="hud-bar">
+      <div class="hud-stat"><div class="hud-val" id="hudRes">1280×720</div><div class="hud-label">Resolution</div></div>
+      <div class="hud-stat"><div class="hud-val" id="hudHfov">—°</div><div class="hud-label">H-FOV</div></div>
+      <div class="hud-stat"><div class="hud-val" id="hudVfov">—°</div><div class="hud-label">V-FOV</div></div>
+      <div class="hud-stat"><div class="hud-val" id="hudDfov">—°</div><div class="hud-label">D-FOV</div></div>
+    </div>
+
+    <div class="reticle-wrap">
+      <span class="reticle-corner-tr"></span>
+      <span class="reticle-corner-bl"></span>
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <label class="toggle-row">
+      <input type="checkbox" id="showIdeal">
+      Overlay ideal (undistorted) grid in cyan
+    </label>
+
+    <p class="viewport-caption">
+      This is a synthetic fronto-parallel checkerboard, projected through your <b>K</b> matrix and then warped by the Brown–Conrady distortion model (<code>k1, k2, k3, p1, p2</code> — same order and convention as OpenCV's <code>distCoeffs</code>). Straight world lines that curve here will curve the same way in real footage from this lens.
+    </p>
+  </div>
+</div>
+
+<footer>camera-calibration-inspector · runs entirely client-side, nothing leaves your browser</footer>
+
+<script>
+(function(){
+  const state = {
+    width:1280, height:720,
+    fx:1000, fy:1000, cx:640, cy:360,
+    k1:-0.22, k2:0.06, k3:0, p1:0, p2:0,
+    showIdeal:false
+  };
+
+  const ids = ['width','height','fx','fy','cx','cy'];
+  const sliderIds = ['k1','k2','k3','p1','p2'];
+
+  const els = {};
+  ids.concat(sliderIds).forEach(id => els[id] = document.getElementById(id));
+  const showIdealEl = document.getElementById('showIdeal');
+
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  function syncInputsFromState(){
+    ids.forEach(id => els[id].value = state[id]);
+    sliderIds.forEach(id => {
+      els[id].value = state[id];
+      document.getElementById(id+'val').textContent = Number(state[id]).toFixed(id==='p1'||id==='p2'?4:3);
+    });
+  }
+
+  function readStateFromInputs(){
+    ids.forEach(id => {
+      const v = parseFloat(els[id].value);
+      if(!isNaN(v)) state[id] = v;
+    });
+    sliderIds.forEach(id => {
+      const v = parseFloat(els[id].value);
+      if(!isNaN(v)) state[id] = v;
+      document.getElementById(id+'val').textContent = v.toFixed(id==='p1'||id==='p2'?4:3);
+    });
+    state.showIdeal = showIdealEl.checked;
+  }
+
+  function clampState(){
+    state.width = Math.max(16, Math.round(state.width));
+    state.height = Math.max(16, Math.round(state.height));
+    state.fx = state.fx === 0 ? 1 : state.fx;
+    state.fy = state.fy === 0 ? 1 : state.fy;
+  }
+
+  function distort(x, y){
+    const r2 = x*x + y*y;
+    const radial = 1 + state.k1*r2 + state.k2*r2*r2 + state.k3*r2*r2*r2;
+    const xd = x*radial + 2*state.p1*x*y + state.p2*(r2 + 2*x*x);
+    const yd = y*radial + state.p1*(r2 + 2*y*y) + 2*state.p2*x*y;
+    return [xd, yd];
+  }
+
+  function computeCanvasSize(){
+    const wrap = canvas.parentElement.parentElement; // viewport-col
+    const available = Math.min(wrap.clientWidth - 28, 760);
+    const maxH = window.innerHeight * 0.62;
+    let cssW = Math.max(280, available);
+    let cssH = cssW * (state.height/state.width);
+    if(cssH > maxH){
+      cssH = maxH;
+      cssW = cssH * (state.width/state.height);
+    }
+    return {cssW, cssH};
+  }
+
+  function render(){
+    clampState();
+
+    const {fx, fy, cx, cy, width, height} = state;
+    const {cssW, cssH} = computeCanvasSize();
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const scale = cssW / width;
+
+    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.fillStyle = '#18191c';
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    // normalized coordinate bounds covering the frame, plus margin
+    let xMinN = (0 - cx) / fx, xMaxN = (width - cx) / fx;
+    let yMinN = (0 - cy) / fy, yMaxN = (height - cy) / fy;
+    const xRange = xMaxN - xMinN, yRange = yMaxN - yMinN;
+    const marginX = xRange * 0.35, marginY = yRange * 0.35;
+    xMinN -= marginX; xMaxN += marginX;
+    yMinN -= marginY; yMaxN += marginY;
+
+    const targetCellPx = 70;
+    let stepX = targetCellPx / fx, stepY = targetCellPx / fy;
+    let cols = Math.ceil((xMaxN - xMinN) / stepX);
+    let rows = Math.ceil((yMaxN - yMinN) / stepY);
+    cols = Math.min(Math.max(cols, 4), 90);
+    rows = Math.min(Math.max(rows, 4), 90);
+    stepX = (xMaxN - xMinN) / cols;
+    stepY = (yMaxN - yMinN) / rows;
+
+    // build grid vertices: distorted + ideal, in canvas pixel space
+    const gridD = [], gridI = [];
+    for(let j = 0; j <= rows; j++){
+      const rowD = [], rowI = [];
+      const yN = yMinN + j*stepY;
+      for(let i = 0; i <= cols; i++){
+        const xN = xMinN + i*stepX;
+        const [xd, yd] = distort(xN, yN);
+        rowD.push([ (fx*xd + cx) * scale, (fy*yd + cy) * scale ]);
+        rowI.push([ (fx*xN + cx) * scale, (fy*yN + cy) * scale ]);
+      }
+      gridD.push(rowD); gridI.push(rowI);
+    }
+
+    // clip to sensor frame and paint checkerboard
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, width*scale, height*scale);
+    ctx.clip();
+
+    for(let j = 0; j < rows; j++){
+      for(let i = 0; i < cols; i++){
+        const p1_ = gridD[j][i], p2_ = gridD[j][i+1], p3_ = gridD[j+1][i+1], p4_ = gridD[j+1][i];
+        ctx.beginPath();
+        ctx.moveTo(p1_[0], p1_[1]);
+        ctx.lineTo(p2_[0], p2_[1]);
+        ctx.lineTo(p3_[0], p3_[1]);
+        ctx.lineTo(p4_[0], p4_[1]);
+        ctx.closePath();
+        ctx.fillStyle = ((i + j) % 2 === 0) ? '#f2f1ec' : '#121417';
+        ctx.fill();
+      }
+    }
+
+    if(state.showIdeal){
+      ctx.strokeStyle = 'rgba(17,83,238,0.55)';
+      ctx.lineWidth = 1;
+      for(let j = 0; j <= rows; j++){
+        ctx.beginPath();
+        ctx.moveTo(gridI[j][0][0], gridI[j][0][1]);
+        for(let i = 1; i <= cols; i++) ctx.lineTo(gridI[j][i][0], gridI[j][i][1]);
+        ctx.stroke();
+      }
+      for(let i = 0; i <= cols; i++){
+        ctx.beginPath();
+        ctx.moveTo(gridI[0][i][0], gridI[0][i][1]);
+        for(let j = 1; j <= rows; j++) ctx.lineTo(gridI[j][i][0], gridI[j][i][1]);
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+
+    // frame border
+    ctx.strokeStyle = '#3a3f47';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(0.75, 0.75, width*scale - 1.5, height*scale - 1.5);
+
+    // principal point crosshair
+    const pcx = cx*scale, pcy = cy*scale;
+    ctx.strokeStyle = '#ee1133';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pcx-8, pcy); ctx.lineTo(pcx+8, pcy);
+    ctx.moveTo(pcx, pcy-8); ctx.lineTo(pcx, pcy+8);
+    ctx.stroke();
+
+    updateHud();
+  }
+
+  function updateHud(){
+    const {fx, fy, width, height} = state;
+    document.getElementById('hudRes').textContent = `${state.width}×${state.height}`;
+    const hfov = 2*Math.atan(width/(2*fx)) * 180/Math.PI;
+    const vfov = 2*Math.atan(height/(2*fy)) * 180/Math.PI;
+    const favg = (fx+fy)/2;
+    const dfov = 2*Math.atan(Math.sqrt((width/2)**2+(height/2)**2)/favg) * 180/Math.PI;
+    document.getElementById('hudHfov').textContent = hfov.toFixed(1) + '°';
+    document.getElementById('hudVfov').textContent = vfov.toFixed(1) + '°';
+    document.getElementById('hudDfov').textContent = dfov.toFixed(1) + '°';
+  }
+
+  function onChange(){
+    readStateFromInputs();
+    render();
+  }
+
+  ids.concat(sliderIds).forEach(id => {
+    els[id].addEventListener('input', onChange);
+  });
+  showIdealEl.addEventListener('change', onChange);
+
+  const PRESETS = {
+    pinhole:    {k1:0,     k2:0,     k3:0,    p1:0,     p2:0},
+    mild:       {k1:-0.22, k2:0.06,  k3:0,    p1:0,     p2:0},
+    strong:     {k1:-0.45, k2:0.18,  k3:-0.02,p1:0,     p2:0},
+    pincushion: {k1:0.18,  k2:-0.05, k3:0,    p1:0,     p2:0},
+    decentered: {k1:-0.15, k2:0.03,  k3:0,    p1:0.02,  p2:0.01}
+  };
+
+  document.querySelectorAll('[data-preset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      Object.assign(state, PRESETS[btn.dataset.preset]);
+      syncInputsFromState();
+      render();
+    });
+  });
+
+  // ---- import / parse ----
+  document.getElementById('importBtn').addEventListener('click', () => {
+    const raw = document.getElementById('importBox').value;
+    const statusEl = document.getElementById('importStatus');
+    const nums = (raw.match(/-?\d+\.?\d*(?:[eE][-+]?\d+)?/g) || []).map(Number);
+
+    if(nums.length < 9){
+      statusEl.textContent = `Found ${nums.length} numbers — need at least 9 for a 3×3 K matrix.`;
+      statusEl.className = 'status-msg err';
+      return;
+    }
+
+    state.fx = nums[0]; state.cx = nums[2];
+    state.fy = nums[4]; state.cy = nums[5];
+
+    const distVals = nums.slice(9, 14);
+    const distKeys = ['k1','k2','p1','p2','k3'];
+    distKeys.forEach((k, idx) => { state[k] = distVals[idx] !== undefined ? distVals[idx] : 0; });
+
+    syncInputsFromState();
+    render();
+
+    statusEl.textContent = `Applied K matrix${distVals.length ? ' + ' + distVals.length + ' distortion coeff(s)' : ''}.`;
+    statusEl.className = 'status-msg ok';
+  });
+
+  // ---- export / copy ----
+  function copyText(text){
+    if(navigator.clipboard && window.isSecureContext){
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise((resolve, reject) => {
+      try{
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        resolve();
+      }catch(e){ reject(e); }
+    });
+  }
+
+  document.getElementById('copyBtn').addEventListener('click', () => {
+    const snippet =
+`import numpy as np
+
+K = np.array([
+    [${state.fx}, 0, ${state.cx}],
+    [0, ${state.fy}, ${state.cy}],
+    [0, 0, 1]
+], dtype=np.float64)
+
+dist = np.array([${state.k1}, ${state.k2}, ${state.p1}, ${state.p2}, ${state.k3}], dtype=np.float64)  # k1, k2, p1, p2, k3
+`;
+    const statusEl = document.getElementById('copyStatus');
+    copyText(snippet).then(() => {
+      statusEl.textContent = 'Copied to clipboard.';
+      statusEl.className = 'status-msg ok';
+    }).catch(() => {
+      statusEl.textContent = 'Could not copy — select the export manually.';
+      statusEl.className = 'status-msg err';
+    });
+  });
+
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(render, 80);
+  });
+
+  syncInputsFromState();
+  render();
+})();
+</script>
+
+</body>
+</html>
