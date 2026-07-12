@@ -502,11 +502,11 @@
     <div class="panel">
       <p class="section-label">Presets</p>
       <div class="preset-grid">
-        <button class="btn" data-preset="pinhole">Ideal pinhole</button>
-        <button class="btn" data-preset="mild">Mild barrel</button>
-        <button class="btn" data-preset="strong">Strong barrel</button>
-        <button class="btn" data-preset="pincushion">Pincushion</button>
-        <button class="btn" data-preset="decentered" style="grid-column:1 / -1;">Decentered lens</button>
+        <button class="btn" data-preset="pinhole" style="grid-column:1 / -1;">Ideal pinhole</button>
+        <button class="btn" data-preset="mildBarrel">Mild barrel</button>
+        <button class="btn" data-preset="strongBarrel">Strong barrel</button>
+        <button class="btn" data-preset="mildPincushion">Mild pincushion</button>
+        <button class="btn" data-preset="strongPincushion">Strong pincushion</button>
       </div>
     </div>
 
@@ -751,11 +751,11 @@
   showIdealEl.addEventListener('change', onChange);
 
   const PRESETS = {
-    pinhole:    {k1:0,     k2:0,     k3:0,    p1:0,     p2:0},
-    mild:       {k1:-0.22, k2:0.06,  k3:0,    p1:0,     p2:0},
-    strong:     {k1:-0.45, k2:0.18,  k3:-0.02,p1:0,     p2:0},
-    pincushion: {k1:0.18,  k2:-0.05, k3:0,    p1:0,     p2:0},
-    decentered: {k1:-0.15, k2:0.03,  k3:0,    p1:0.02,  p2:0.01}
+    pinhole:         {k1:0,     k2:0,     k3:0,    p1:0, p2:0},
+    mildBarrel:      {k1:-0.22, k2:0.06,  k3:0,    p1:0, p2:0},
+    strongBarrel:    {k1:-0.45, k2:0.18,  k3:-0.02,p1:0, p2:0},
+    mildPincushion:  {k1:0.18,  k2:-0.05, k3:0,    p1:0, p2:0},
+    strongPincushion:{k1:0.50,  k2:-0.10, k3:0.02, p1:0, p2:0}
   };
 
   document.querySelectorAll('[data-preset]').forEach(btn => {
