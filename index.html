@@ -151,7 +151,18 @@
     pointer-events:none;
   }
 
-  input[type=number]:focus, input[type=text]:focus, textarea:focus, button:focus-visible{
+  select{
+    width:100%;
+    background:var(--bg);
+    border:1px solid var(--panel-border);
+    color:var(--text-primary);
+    font-family:var(--mono);
+    font-size:13px;
+    padding:7px 8px;
+    border-radius:var(--radius);
+  }
+
+  input[type=number]:focus, input[type=text]:focus, select:focus, textarea:focus, button:focus-visible{
     outline:2px solid var(--accent-primary);
     outline-offset:1px;
   }
@@ -268,14 +279,44 @@
     resize:vertical;
   }
 
-  .status-msg{
-    font-size:11px;
+  .export-preview{position:relative;}
+
+  .export-preview pre{
+    margin:0;
+    background:var(--bg);
+    border:1px solid var(--panel-border);
+    border-radius:var(--radius);
+    padding:10px 34px 10px 10px;
     font-family:var(--mono);
-    margin-top:8px;
-    min-height:14px;
+    font-size:11px;
+    line-height:1.5;
+    color:var(--text-primary);
+    white-space:pre;
+    overflow:auto;
+    max-height:220px;
   }
-  .status-msg.ok{color:var(--accent-secondary);}
-  .status-msg.err{color:var(--danger);}
+
+  .copy-icon-btn{
+    position:absolute;
+    top:8px;
+    right:8px;
+    width:24px;
+    height:24px;
+    padding:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:4px;
+    color:var(--text-muted);
+    transition:border-color .15s, color .15s;
+  }
+  .copy-icon-btn:hover{border-color:var(--accent-primary); color:var(--accent-primary);}
+  .copy-icon-btn .icon-check{display:none;}
+  .copy-icon-btn.copied{border-color:var(--accent-secondary); color:var(--accent-secondary);}
+  .copy-icon-btn.copied .icon-copy{display:none;}
+  .copy-icon-btn.copied .icon-check{display:block;}
 
   .toggle-row{
     display:flex;
@@ -511,17 +552,23 @@
     </div>
 
     <div class="panel">
-      <p class="section-label">Import</p>
-      <p class="hint" style="margin-bottom:8px;">Paste a printed OpenCV <code>mtx</code> and <code>dist</code> (any format) — numbers are pulled out in order.</p>
-      <textarea id="importBox" placeholder="[[1000. 0. 640.]&#10; [0. 1000. 360.]&#10; [0. 0. 1.]]&#10;[-0.22 0.06 0. 0. 0.]"></textarea>
-      <button class="btn" id="importBtn" style="width:100%; margin-top:8px;">Parse &amp; apply</button>
-      <p class="status-msg" id="importStatus"></p>
-    </div>
-
-    <div class="panel">
       <p class="section-label">Export</p>
-      <button class="btn-primary" id="copyBtn">Copy as OpenCV snippet</button>
-      <p class="status-msg" id="copyStatus"></p>
+      <div class="field" style="margin-bottom:10px;">
+        <label for="exportFormat">Format</label>
+        <select id="exportFormat">
+          <option value="opencv-py">OpenCV (Python)</option>
+          <option value="opencv-cpp">OpenCV (C++)</option>
+          <option value="yaml">YAML</option>
+          <option value="json">JSON</option>
+        </select>
+      </div>
+      <div class="export-preview">
+        <pre id="exportPreview"></pre>
+        <button class="copy-icon-btn" id="copyBtn" title="Copy to clipboard" aria-label="Copy to clipboard">
+          <svg class="icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          <svg class="icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </button>
+      </div>
     </div>
 
   </div>
@@ -726,6 +773,7 @@
     ctx.stroke();
 
     updateHud();
+    updatePreview();
   }
 
   function updateHud(){
@@ -766,32 +814,6 @@
     });
   });
 
-  // ---- import / parse ----
-  document.getElementById('importBtn').addEventListener('click', () => {
-    const raw = document.getElementById('importBox').value;
-    const statusEl = document.getElementById('importStatus');
-    const nums = (raw.match(/-?\d+\.?\d*(?:[eE][-+]?\d+)?/g) || []).map(Number);
-
-    if(nums.length < 9){
-      statusEl.textContent = `Found ${nums.length} numbers — need at least 9 for a 3×3 K matrix.`;
-      statusEl.className = 'status-msg err';
-      return;
-    }
-
-    state.fx = nums[0]; state.cx = nums[2];
-    state.fy = nums[4]; state.cy = nums[5];
-
-    const distVals = nums.slice(9, 14);
-    const distKeys = ['k1','k2','p1','p2','k3'];
-    distKeys.forEach((k, idx) => { state[k] = distVals[idx] !== undefined ? distVals[idx] : 0; });
-
-    syncInputsFromState();
-    render();
-
-    statusEl.textContent = `Applied K matrix${distVals.length ? ' + ' + distVals.length + ' distortion coeff(s)' : ''}.`;
-    statusEl.className = 'status-msg ok';
-  });
-
   // ---- export / copy ----
   function copyText(text){
     if(navigator.clipboard && window.isSecureContext){
@@ -812,25 +834,76 @@
     });
   }
 
-  document.getElementById('copyBtn').addEventListener('click', () => {
-    const snippet =
+  const SNIPPET_BUILDERS = {
+    'opencv-py': ({fx, fy, cx, cy, k1, k2, k3, p1, p2}) =>
 `import numpy as np
 
 K = np.array([
-    [${state.fx}, 0, ${state.cx}],
-    [0, ${state.fy}, ${state.cy}],
+    [${fx}, 0, ${cx}],
+    [0, ${fy}, ${cy}],
     [0, 0, 1]
 ], dtype=np.float64)
 
-dist = np.array([${state.k1}, ${state.k2}, ${state.p1}, ${state.p2}, ${state.k3}], dtype=np.float64)  # k1, k2, p1, p2, k3
-`;
-    const statusEl = document.getElementById('copyStatus');
-    copyText(snippet).then(() => {
-      statusEl.textContent = 'Copied to clipboard.';
-      statusEl.className = 'status-msg ok';
-    }).catch(() => {
-      statusEl.textContent = 'Could not copy — select the export manually.';
-      statusEl.className = 'status-msg err';
+dist = np.array([${k1}, ${k2}, ${p1}, ${p2}, ${k3}], dtype=np.float64)  # k1, k2, p1, p2, k3
+`,
+
+    'opencv-cpp': ({fx, fy, cx, cy, k1, k2, k3, p1, p2}) =>
+`cv::Mat K = (cv::Mat_<double>(3, 3) <<
+    ${fx}, 0, ${cx},
+    0, ${fy}, ${cy},
+    0, 0, 1);
+
+// k1, k2, p1, p2, k3
+cv::Mat distCoeffs = (cv::Mat_<double>(1, 5) << ${k1}, ${k2}, ${p1}, ${p2}, ${k3});
+`,
+
+    'yaml': ({fx, fy, cx, cy, k1, k2, k3, p1, p2}) =>
+`intrinsics_matrix:
+  - [${fx}, 0, ${cx}]
+  - [0, ${fy}, ${cy}]
+  - [0, 0, 1]
+
+distortion_coefficients:
+  k1: ${k1}
+  k2: ${k2}
+  k3: ${k3}
+  p1: ${p1}
+  p2: ${p2}
+`,
+
+    'json': ({fx, fy, cx, cy, k1, k2, k3, p1, p2}) =>
+`{
+  "intrinsics_matrix": [
+    [${fx}, 0, ${cx}],
+    [0, ${fy}, ${cy}],
+    [0, 0, 1]
+  ],
+  "distortion_coefficients": {
+    "k1": ${k1},
+    "k2": ${k2},
+    "k3": ${k3},
+    "p1": ${p1},
+    "p2": ${p2}
+  }
+}
+`
+  };
+
+  const exportFormatEl = document.getElementById('exportFormat');
+  const exportPreviewEl = document.getElementById('exportPreview');
+  const copyBtnEl = document.getElementById('copyBtn');
+
+  function updatePreview(){
+    exportPreviewEl.textContent = SNIPPET_BUILDERS[exportFormatEl.value](state);
+  }
+  exportFormatEl.addEventListener('change', updatePreview);
+
+  let copyResetTimer;
+  copyBtnEl.addEventListener('click', () => {
+    copyText(exportPreviewEl.textContent).then(() => {
+      copyBtnEl.classList.add('copied');
+      clearTimeout(copyResetTimer);
+      copyResetTimer = setTimeout(() => copyBtnEl.classList.remove('copied'), 1400);
     });
   });
 
