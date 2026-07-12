@@ -840,19 +840,6 @@ dist = np.array([${state.k1}, ${state.k2}, ${state.p1}, ${state.p2}, ${state.k3}
     resizeTimer = setTimeout(render, 80);
   });
 
-  // Report our content height to a parent window embedding us in an iframe,
-  // so it can size the iframe to fit instead of giving it its own scrollbar.
-  function postHeight(){
-    window.parent.postMessage({
-      source: 'camera-calibration-inspector',
-      height: document.documentElement.scrollHeight
-    }, '*');
-  }
-  if(window.parent !== window){
-    new ResizeObserver(postHeight).observe(document.body);
-    window.addEventListener('load', postHeight);
-  }
-
   syncInputsFromState();
   render();
 })();
